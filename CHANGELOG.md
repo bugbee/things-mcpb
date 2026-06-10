@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **`add_todo` with `list_id` no longer fails** — `list_id` is now resolved against
+  projects, areas, and built-in lists (previously it used the built-in-lists-only
+  accessor, so a project ID produced a generic execution error).
+- **`add_todo` with `checklist_items` now creates real checklist items** — they
+  were silently dropped before (the parameter was remapped to an unused internal
+  key). Checklist items are now created as Things "checklist item" objects.
+- **`add_todo` with `heading` now behaves predictably** — to-dos are placed under
+  an existing heading in the target project, and a missing heading returns a clear
+  error instead of silently succeeding with no placement (and no orphan to-do is
+  left behind). Headings still cannot be created via the scripting bridge.
+
+### Added
+- Checklist items are now included in the mapped to-do response (`checklistItems`),
+  fixing the read path from issue #22 (`get_todos` now returns checklist items).
+- `update_todo` with `checklist_items` replaces a to-do's checklist items
+  (empty array clears them).
+- Unit tests covering list/heading resolution and the full `add_todo`/`update_todo`
+  flow via an in-memory Things mock, plus live-Things regression tests for each fix.
+
 ## [1.5.2] - 2025-01-05
 
 ### Changed

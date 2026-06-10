@@ -61,6 +61,9 @@ A comprehensive Claude Desktop Extension that provides seamless integration with
 #### `add_todo` - Create a new to-do
 **Required**: `title`  
 **Optional**: `notes`, `when`, `deadline`, `list_title`, `list_id`, `heading`, `tags`, `checklist_items`
+- `list_id`: ID of a project (or area/built-in list) to add the to-do to
+- `checklist_items`: Array of checklist item titles, created as real Things checklist items
+- `heading`: Name of an existing heading in the target project to place the to-do under. The target project must be supplied via `list_id` or `list_title`. Returns a clear error if the heading does not exist (headings cannot be created via the scripting bridge — create them in Things first)
 
 #### `add_project` - Create a new project  
 **Required**: `title`  
@@ -114,7 +117,7 @@ A comprehensive Claude Desktop Extension that provides seamless integration with
 **Required**: `id`  
 **Optional**: `title`, `notes`, `when`, `deadline`, `tags`, `checklist_items`, `completed`, `canceled`
 - `tags`: Array of tag names. Use `[]` to remove all tags
-- `checklist_items`: Array of checklist items. Appends to existing notes as formatted list
+- `checklist_items`: Array of checklist item titles. Replaces the to-do's checklist items; use `[]` to remove all checklist items
 
 #### `update_project` - Update existing project
 **Required**: `id`  

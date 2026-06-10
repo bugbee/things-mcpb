@@ -2,63 +2,62 @@
  * Todo operations for Things 3
  */
 
-import { mapTodo, formatTags, scheduleItem, parseLocalDate } from './utils.js';
+import {
+  mapTodo,
+  formatTags,
+  scheduleItem,
+  parseLocalDate,
+  resolveTargetList,
+  resolveHeading,
+  addChecklistItems,
+  setChecklistItems
+} from './utils.js';
 
 export class TodoOperations {
-  
+
   /**
    * Add a new todo
    */
   static add(things, params) {
+    // Resolve the target container (project, area, or built-in list).
+    // Handles `list_id` (Bug 1) and `list_title`.
+    const targetList = resolveTargetList(things, params.list_id, params.list_title);
+
+    // If a heading was requested, resolve it BEFORE creating the to-do so that
+    // a missing heading fails loudly without leaving an orphan to-do behind
+    // (Bug 3 - previously this silently succeeded with no heading placement).
+    let headingTarget = null;
+    if (params.heading) {
+      if (!targetList) {
+        throw new Error(
+          `Cannot place to-do under heading "${params.heading}": no target ` +
+          `project was found. Specify the project via list_id or list_title.`
+        );
+      }
+      headingTarget = resolveHeading(targetList, params.heading);
+      if (!headingTarget) {
+        throw new Error(
+          `Heading "${params.heading}" was not found in the target project. ` +
+          `Create the heading in Things first, then add to-dos under it.`
+        );
+      }
+    }
+
     // Create the todo
     const todoProps = {
       name: params.name
     };
-    
+
     if (params.notes) {
       todoProps.notes = params.notes;
     }
-    
+
     const todo = things.ToDo(todoProps);
 
-    // Determine target location
-    let targetList = null;
-
-    // Check for list_id first
-    if (params.list_id) {
-      try {
-        targetList = things.lists.byId(params.list_id);
-      } catch (e) {
-        // List not found, will add to inbox
-      }
-    } else if (params.list_title) {
-      // Check projects
-      try {
-        const projects = things.projects();
-        for (let project of projects) {
-          if (project.name() === params.list_title) {
-            targetList = project;
-            break;
-          }
-        }
-      } catch (e) {}
-
-      // Check areas if not found in projects
-      if (!targetList) {
-        try {
-          const areas = things.areas();
-          for (let area of areas) {
-            if (area.name() === params.list_title) {
-              targetList = area;
-              break;
-            }
-          }
-        } catch (e) {}
-      }
-    }
-
     // Add todo to appropriate location
-    if (targetList) {
+    if (headingTarget) {
+      headingTarget.toDos.push(todo);
+    } else if (targetList) {
       targetList.toDos.push(todo);
     } else {
       // Only add to general todos (inbox) if no specific list/project
@@ -79,23 +78,10 @@ export class TodoOperations {
     if (params.due_date) {
       todo.dueDate = parseLocalDate(params.due_date);
     }
-    
-    // Add to heading within project
-    if (params.heading && params.list_id) {
-      try {
-        const project = things.projects.byId(params.list_id);
-        const todos = project.toDos();
-        const headings = todos.filter(t => t.name() === params.heading);
-        if (headings.length > 0) {
-          const heading = headings[0];
-          const headingIndex = todos.indexOf(heading);
-          things.move(todo, { to: project.toDos[headingIndex] });
-        }
-      } catch (e) {
-        // Heading not found or move failed
-      }
-    }
-    
+
+    // Create checklist items (Bug 2 - previously dropped silently)
+    addChecklistItems(things, todo, params.checklist_items);
+
     return mapTodo(todo);
   }
   
@@ -157,8 +143,13 @@ export class TodoOperations {
     if (params.due_date !== undefined) {
       todo.dueDate = params.due_date ? parseLocalDate(params.due_date) : null;
     }
-    
-    
+
+    // Replace checklist items (empty array clears them). Projects do not have
+    // checklist items, so only apply this to plain to-dos.
+    if (params.checklist_items !== undefined && !isProject) {
+      setChecklistItems(things, todo, params.checklist_items);
+    }
+
     return mapTodo(todo);
   }
   

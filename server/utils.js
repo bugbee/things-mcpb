@@ -137,12 +137,11 @@ export class ParameterProcessor {
       delete processed.deadline;
     }
     
-    // checklist_items (user-friendly) → child_tasks (internal)
-    if (params.checklist_items !== undefined) {
-      processed.child_tasks = params.checklist_items;
-      delete processed.checklist_items;
-    }
-    
+    // checklist_items is passed through unchanged to the JXA layer, which
+    // creates real Things checklist items (the "checklist item" SDEF class).
+    // It used to be remapped to `child_tasks`, but nothing ever consumed that
+    // key, so the items were silently dropped.
+
     return processed;
   }
 }

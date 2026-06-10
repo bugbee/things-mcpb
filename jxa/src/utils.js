@@ -72,6 +72,146 @@ export function parseTags(tagString) {
 
 
 /**
+ * Resolve the target container (project, area, or built-in list) that a new
+ * to-do should be added to.
+ *
+ * A `list_id` is resolved by trying, in order, projects, areas, then built-in
+ * lists. JXA's `byId()` returns a lazy specifier that only throws when it is
+ * accessed, so we force evaluation with `.id()` to detect a missing object
+ * before returning it. This is what fixes the `add_todo` + `list_id` failure:
+ * the old code used `things.lists.byId()` (built-in lists only), which returned
+ * a specifier that blew up later when `.toDos.push()` was called on it.
+ *
+ * Returns the container object, or `null` when nothing matches (or when neither
+ * `listId` nor `listTitle` was supplied).
+ */
+export function resolveTargetList(things, listId, listTitle) {
+  if (listId) {
+    const accessors = [
+      () => things.projects.byId(listId),
+      () => things.areas.byId(listId),
+      () => things.lists.byId(listId)
+    ];
+    for (const accessor of accessors) {
+      try {
+        const obj = accessor();
+        obj.id(); // Force evaluation - throws if the object does not exist
+        return obj;
+      } catch (e) {
+        // Not found via this accessor, try the next one
+      }
+    }
+    return null;
+  }
+
+  if (listTitle) {
+    // Match a project by name first
+    try {
+      const projects = things.projects();
+      for (let project of projects) {
+        if (project.name() === listTitle) {
+          return project;
+        }
+      }
+    } catch (e) {}
+
+    // Then fall back to an area by name
+    try {
+      const areas = things.areas();
+      for (let area of areas) {
+        if (area.name() === listTitle) {
+          return area;
+        }
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Find a heading by name within a target container (project).
+ *
+ * Headings are first-class objects in the Things scripting model, exposed via
+ * the container's `headings` element - they are NOT regular to-dos, which is
+ * why the old name-matching against `toDos()` never worked. Returns the heading
+ * object, or `null` when the container has no matching heading (or does not
+ * support headings at all, e.g. an area).
+ */
+export function resolveHeading(targetList, headingName) {
+  if (!targetList || !headingName) return null;
+  try {
+    const headings = targetList.headings();
+    for (let heading of headings) {
+      if (heading.name() === headingName) {
+        return heading;
+      }
+    }
+  } catch (e) {
+    // Container does not expose headings
+  }
+  return null;
+}
+
+/**
+ * Add checklist items to a to-do.
+ *
+ * Checklist items are child objects of a to-do (the "checklist item" SDEF
+ * class) and must be created and pushed after the to-do exists - they cannot be
+ * passed in the to-do constructor (JXA silently drops unknown constructor
+ * properties, which is what made `add_todo` + `checklist_items` fail quietly).
+ */
+export function addChecklistItems(things, todo, items) {
+  if (!items || !Array.isArray(items) || items.length === 0) return;
+  for (const name of items) {
+    const checklistItem = things.ChecklistItem({ name: String(name) });
+    todo.checklistItems.push(checklistItem);
+  }
+}
+
+/**
+ * Replace a to-do's checklist items with the supplied list.
+ *
+ * Passing an empty array clears all checklist items, mirroring how tag updates
+ * use an empty array to remove all tags.
+ */
+export function setChecklistItems(things, todo, items) {
+  // Clear existing checklist items first
+  try {
+    const existing = todo.checklistItems();
+    for (let i = existing.length - 1; i >= 0; i--) {
+      try {
+        things.delete(existing[i]);
+      } catch (e) {
+        // Item could not be deleted, continue
+      }
+    }
+  } catch (e) {
+    // No existing checklist items to clear
+  }
+  addChecklistItems(things, todo, items);
+}
+
+/**
+ * Map a to-do's checklist items to a plain response structure
+ */
+export function mapChecklistItems(todo) {
+  try {
+    const items = todo.checklistItems();
+    if (!items || items.length === 0) return [];
+    return items.map(item => ({
+      name: item.name(),
+      status: item.status(),
+      completed: item.status() === 'completed'
+    }));
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
  * Map todo object to response format
  */
 export function mapTodo(todo) {
@@ -87,9 +227,10 @@ export function mapTodo(todo) {
     creationDate: getDate(todo, 'creationDate'),
     modificationDate: getDate(todo, 'modificationDate'),
     completionDate: getDate(todo, 'completionDate'),
-    cancellationDate: getDate(todo, 'cancellationDate')
+    cancellationDate: getDate(todo, 'cancellationDate'),
+    checklistItems: mapChecklistItems(todo)  // Read path for issue #22
   };
-  
+
   // Add project info if exists
   try {
     const project = todo.project();

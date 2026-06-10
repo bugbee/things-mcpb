@@ -31,6 +31,15 @@ suite.test('maps "deadline" to "due_date"', () => {
   expect.toBeFalsy(result.hasOwnProperty('deadline'));
 });
 
+suite.test('passes checklist_items through unchanged (not remapped to child_tasks)', () => {
+  const input = { name: 'T', checklist_items: ['a', 'b'] };
+  const result = ParameterProcessor.process(input);
+
+  expect.toHaveProperty(result, 'checklist_items');
+  expect.toDeepEqual(result.checklist_items, ['a', 'b']);
+  expect.toBeFalsy(result.hasOwnProperty('child_tasks'));
+});
+
 suite.test('preserves unmapped parameters', () => {
   const input = { name: 'Test Todo', notes: 'Test notes' };
   const result = ParameterProcessor.process(input);
