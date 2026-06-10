@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.4] - 2026-06-10
+
+### Fixed
+- **`add_todo` with `checklist_items` now actually creates the checklist** and no
+  longer leaves an orphaned to-do on failure. The Things AppleScript/JXA bridge
+  cannot create checklist items at all, so these to-dos are now created via the
+  Things URL scheme (`things:///add`), which builds the to-do and its checklist
+  atomically. The response echoes the created items for confirmation.
+- **`add_todo` with `heading` now places the to-do via the URL scheme** instead
+  of erroring on every heading (the round-1 object-model lookup called API that
+  doesn't exist, so existing and non-existent headings failed identically). The
+  to-do lands under the heading when it exists, otherwise at the project's top
+  level; the response carries a `note` because the bridge cannot verify headings.
+
+### Changed
+- `update_todo` no longer attempts (and silently fails) to edit checklist items
+  on an existing to-do — editing checklists requires the URL `update` command and
+  a Things auth token. It now returns a clear `note` instead.
+
+### Known limitations
+- Reading checklist items back (e.g. `get_todos`) is not supported by the Things
+  scripting bridge; the `checklistItems` field may be empty on reads (issue #22's
+  read path is a Things limitation, not a fixable bug here). The `add_todo`
+  response echoes what it created.
+- Heading existence cannot be validated via the bridge, so a non-existent heading
+  results in top-level placement plus a caveat `note` rather than an error.
+
 ## [1.5.3] - 2026-06-10
 
 ### Fixed

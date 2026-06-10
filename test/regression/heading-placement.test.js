@@ -3,14 +3,15 @@
 /**
  * Regression tests for add_todo + heading (Bug 3)
  *
- * - An existing heading places the todo under it.
- * - A non-existent heading returns a clear error and creates no todo
- *   (no silent fallback).
+ * Headings cannot be created or read via the Things AppleScript bridge, so
+ * to-dos with a `heading` are created through the Things URL scheme, which
+ * places the to-do under the heading when it exists and at the project's top
+ * level when it doesn't (Things ignores unknown headings). Because the bridge
+ * can't verify which happened, the response always carries a `note` caveat
+ * ("place + caveat" behaviour).
  *
- * NOTE: Things cannot create headings via the scripting bridge, so the
- * existing-heading case requires a heading named "Verification Heading" to be
- * created manually in the test project beforehand. When absent, that test
- * is skipped rather than failed. Requires Things 3 running; skips in CI.
+ * Requires Things 3 running; skips cleanly in CI. To fully exercise 3a, create
+ * a heading named "Verification Heading" in the test project manually first.
  */
 
 import { TestSuite, expect, ThingsTestHelper } from '../test-utils.js';
@@ -53,50 +54,41 @@ suite.test('setup: create a target project', async () => {
     `"${HEADING_NAME}" to the project "${projectName}" in Things.`);
 });
 
-suite.test('add_todo with a non-existent heading errors and creates no todo', async () => {
+suite.test('add_todo with a heading succeeds and returns a caveat note (3a)', async () => {
   if (!await ThingsTestHelper.isRunning() || !projectId) {
     console.log('⏭️  Skipping - Things 3 not running or setup failed');
     return;
   }
 
-  const parsed = runScript('add_todo', {
-    name: 'V3b - should error',
-    list_id: projectId,
-    heading: 'ThisHeadingDoesNotExist'
-  });
-
-  expect.toEqual(parsed.success, false);
-  expect.toBeTruthy(parsed.error, 'an error should be returned');
-  expect.toContain(parsed.error.message, 'not found');
-
-  // Confirm no orphan todo was created in the project
-  const todos = runScript('get_todos', { project_uuid: projectId });
-  expect.toEqual(todos.success, true);
-  const orphan = todos.data.find(t => t.name === 'V3b - should error');
-  expect.toBeFalsy(orphan, 'no todo should have been created');
-});
-
-suite.test('add_todo under an existing heading places the todo there', async () => {
-  if (!await ThingsTestHelper.isRunning() || !projectId) {
-    console.log('⏭️  Skipping - Things 3 not running or setup failed');
-    return;
-  }
-
-  // Only meaningful if the manual heading exists. Probe by attempting the add.
   const parsed = runScript('add_todo', {
     name: 'V3a - under heading',
     list_id: projectId,
     heading: HEADING_NAME
   });
 
-  if (!parsed.success) {
-    console.log(`⏭️  Skipping - heading "${HEADING_NAME}" not present in test project. ` +
-      `Create it manually to exercise this case.`);
+  expect.toEqual(parsed.success, true);
+  expect.toHaveProperty(parsed.data, 'note');
+  expect.toContain(parsed.data.note, HEADING_NAME);
+  console.log('   ℹ️  Manually confirm in Things whether the to-do landed under ' +
+    `the "${HEADING_NAME}" heading (only if you created that heading).`);
+});
+
+suite.test('add_todo with a non-existent heading still creates the to-do (no error) (3b)', async () => {
+  if (!await ThingsTestHelper.isRunning() || !projectId) {
+    console.log('⏭️  Skipping - Things 3 not running or setup failed');
     return;
   }
 
-  expect.toHaveProperty(parsed.data, 'id');
-  expect.toEqual(parsed.data.name, 'V3a - under heading');
+  // Per the chosen "place + caveat" behaviour, a missing heading is not an error:
+  // the to-do is created at the project's top level and the note flags the caveat.
+  const parsed = runScript('add_todo', {
+    name: 'V3b - missing heading',
+    list_id: projectId,
+    heading: 'ThisHeadingDoesNotExist'
+  });
+
+  expect.toEqual(parsed.success, true);
+  expect.toHaveProperty(parsed.data, 'note');
 });
 
 suite.test('cleanup: remove regression project', async () => {

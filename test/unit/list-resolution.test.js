@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * Unit tests for list/heading resolution helpers (jxa/src/utils.js)
+ * Unit tests for list resolution (jxa/src/utils.js)
  *
- * These cover the root cause of Bug 1 (add_todo + list_id) and the heading
- * lookup used by Bug 3, using an in-memory mock of the Things app so they run
- * in CI without macOS or Things 3.
+ * Covers the root cause of Bug 1 (add_todo + list_id) using an in-memory mock
+ * of the Things app so they run in CI without macOS or Things 3.
  */
 
 import { TestSuite, expect } from '../test-utils.js';
-import { resolveTargetList, resolveHeading } from '../../jxa/src/utils.js';
-import { createMockThings, createContainer, createHeading } from '../mocks/things-mock.js';
+import { resolveTargetList } from '../../jxa/src/utils.js';
+import { createMockThings, createContainer } from '../mocks/things-mock.js';
 
-const suite = new TestSuite('List/Heading Resolution Unit Tests');
+const suite = new TestSuite('List Resolution Unit Tests');
 
 suite.test('resolveTargetList resolves a project by id', () => {
   const project = createContainer({ id: 'proj-123', name: 'My Project' });
@@ -70,33 +69,6 @@ suite.test('resolveTargetList prefers project over area when both match a title'
 suite.test('resolveTargetList returns null when neither id nor title provided', () => {
   const things = createMockThings({});
   expect.toEqual(resolveTargetList(things, undefined, undefined), null);
-});
-
-suite.test('resolveHeading finds an existing heading in a project', () => {
-  const heading = createHeading('Section A');
-  const project = createContainer({ id: 'proj-1', name: 'P', headings: [heading] });
-
-  const result = resolveHeading(project, 'Section A');
-  expect.toBeTruthy(result);
-  expect.toEqual(result.name(), 'Section A');
-});
-
-suite.test('resolveHeading returns null for a missing heading', () => {
-  const heading = createHeading('Section A');
-  const project = createContainer({ id: 'proj-1', name: 'P', headings: [heading] });
-
-  expect.toEqual(resolveHeading(project, 'Nonexistent'), null);
-});
-
-suite.test('resolveHeading returns null when container has no headings (area)', () => {
-  const area = createContainer({ id: 'area-1', name: 'A', type: 'area' });
-  expect.toEqual(resolveHeading(area, 'Anything'), null);
-});
-
-suite.test('resolveHeading returns null for null inputs', () => {
-  expect.toEqual(resolveHeading(null, 'x'), null);
-  const project = createContainer({ id: 'p', name: 'P' });
-  expect.toEqual(resolveHeading(project, null), null);
 });
 
 suite.run().catch(() => process.exit(1));

@@ -132,70 +132,13 @@ export function resolveTargetList(things, listId, listTitle) {
 }
 
 /**
- * Find a heading by name within a target container (project).
+ * Map a to-do's checklist items to a plain response structure.
  *
- * Headings are first-class objects in the Things scripting model, exposed via
- * the container's `headings` element - they are NOT regular to-dos, which is
- * why the old name-matching against `toDos()` never worked. Returns the heading
- * object, or `null` when the container has no matching heading (or does not
- * support headings at all, e.g. an area).
- */
-export function resolveHeading(targetList, headingName) {
-  if (!targetList || !headingName) return null;
-  try {
-    const headings = targetList.headings();
-    for (let heading of headings) {
-      if (heading.name() === headingName) {
-        return heading;
-      }
-    }
-  } catch (e) {
-    // Container does not expose headings
-  }
-  return null;
-}
-
-/**
- * Add checklist items to a to-do.
- *
- * Checklist items are child objects of a to-do (the "checklist item" SDEF
- * class) and must be created and pushed after the to-do exists - they cannot be
- * passed in the to-do constructor (JXA silently drops unknown constructor
- * properties, which is what made `add_todo` + `checklist_items` fail quietly).
- */
-export function addChecklistItems(things, todo, items) {
-  if (!items || !Array.isArray(items) || items.length === 0) return;
-  for (const name of items) {
-    const checklistItem = things.ChecklistItem({ name: String(name) });
-    todo.checklistItems.push(checklistItem);
-  }
-}
-
-/**
- * Replace a to-do's checklist items with the supplied list.
- *
- * Passing an empty array clears all checklist items, mirroring how tag updates
- * use an empty array to remove all tags.
- */
-export function setChecklistItems(things, todo, items) {
-  // Clear existing checklist items first
-  try {
-    const existing = todo.checklistItems();
-    for (let i = existing.length - 1; i >= 0; i--) {
-      try {
-        things.delete(existing[i]);
-      } catch (e) {
-        // Item could not be deleted, continue
-      }
-    }
-  } catch (e) {
-    // No existing checklist items to clear
-  }
-  addChecklistItems(things, todo, items);
-}
-
-/**
- * Map a to-do's checklist items to a plain response structure
+ * NOTE: the Things scripting bridge generally cannot read checklist items
+ * either, so this typically returns `[]` even for to-dos that have a checklist
+ * in the app. It is kept so the response shape is stable and populates if a
+ * future Things version exposes checklist items. The write path (add_todo)
+ * echoes the items it created so callers still get confirmation.
  */
 export function mapChecklistItems(todo) {
   try {

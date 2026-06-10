@@ -7,11 +7,9 @@ import {
   formatTags,
   scheduleItem,
   parseLocalDate,
-  resolveTargetList,
-  resolveHeading,
-  addChecklistItems,
-  setChecklistItems
+  resolveTargetList
 } from './utils.js';
+import { addViaUrlScheme } from './url-scheme.js';
 
 export class TodoOperations {
 
@@ -19,31 +17,19 @@ export class TodoOperations {
    * Add a new todo
    */
   static add(things, params) {
-    // Resolve the target container (project, area, or built-in list).
-    // Handles `list_id` (Bug 1) and `list_title`.
-    const targetList = resolveTargetList(things, params.list_id, params.list_title);
+    // Checklist items and headings cannot be created through the AppleScript/JXA
+    // bridge - only via the Things URL scheme. Route those cases there so the
+    // to-do + checklist + heading are created atomically (no orphan to-dos).
+    const needsUrlScheme =
+      (params.checklist_items && params.checklist_items.length > 0) || !!params.heading;
 
-    // If a heading was requested, resolve it BEFORE creating the to-do so that
-    // a missing heading fails loudly without leaving an orphan to-do behind
-    // (Bug 3 - previously this silently succeeded with no heading placement).
-    let headingTarget = null;
-    if (params.heading) {
-      if (!targetList) {
-        throw new Error(
-          `Cannot place to-do under heading "${params.heading}": no target ` +
-          `project was found. Specify the project via list_id or list_title.`
-        );
-      }
-      headingTarget = resolveHeading(targetList, params.heading);
-      if (!headingTarget) {
-        throw new Error(
-          `Heading "${params.heading}" was not found in the target project. ` +
-          `Create the heading in Things first, then add to-dos under it.`
-        );
-      }
+    if (needsUrlScheme) {
+      return addViaUrlScheme(things, params);
     }
 
-    // Create the todo
+    // Object-model path - handles list_id targeting (Bug 1) and plain to-dos.
+    const targetList = resolveTargetList(things, params.list_id, params.list_title);
+
     const todoProps = {
       name: params.name
     };
@@ -55,9 +41,7 @@ export class TodoOperations {
     const todo = things.ToDo(todoProps);
 
     // Add todo to appropriate location
-    if (headingTarget) {
-      headingTarget.toDos.push(todo);
-    } else if (targetList) {
+    if (targetList) {
       targetList.toDos.push(todo);
     } else {
       // Only add to general todos (inbox) if no specific list/project
@@ -78,9 +62,6 @@ export class TodoOperations {
     if (params.due_date) {
       todo.dueDate = parseLocalDate(params.due_date);
     }
-
-    // Create checklist items (Bug 2 - previously dropped silently)
-    addChecklistItems(things, todo, params.checklist_items);
 
     return mapTodo(todo);
   }
@@ -144,13 +125,19 @@ export class TodoOperations {
       todo.dueDate = params.due_date ? parseLocalDate(params.due_date) : null;
     }
 
-    // Replace checklist items (empty array clears them). Projects do not have
-    // checklist items, so only apply this to plain to-dos.
-    if (params.checklist_items !== undefined && !isProject) {
-      setChecklistItems(things, todo, params.checklist_items);
+    const result = mapTodo(todo);
+
+    // Editing checklist items on an existing to-do requires the URL-scheme
+    // `update` command, which needs a Things auth token (not configured). Rather
+    // than silently failing or throwing after other fields were already updated,
+    // surface a clear note. The other field updates above still apply.
+    if (params.checklist_items !== undefined) {
+      result.note = 'Checklist items were not modified: editing checklists on an ' +
+        'existing to-do requires the Things URL auth-token flow, which is not enabled ' +
+        'in this extension. To set a checklist, create the to-do with add_todo.';
     }
 
-    return mapTodo(todo);
+    return result;
   }
   
   /**

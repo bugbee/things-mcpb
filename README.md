@@ -62,8 +62,10 @@ A comprehensive Claude Desktop Extension that provides seamless integration with
 **Required**: `title`  
 **Optional**: `notes`, `when`, `deadline`, `list_title`, `list_id`, `heading`, `tags`, `checklist_items`
 - `list_id`: ID of a project (or area/built-in list) to add the to-do to
-- `checklist_items`: Array of checklist item titles, created as real Things checklist items
-- `heading`: Name of an existing heading in the target project to place the to-do under. The target project must be supplied via `list_id` or `list_title`. Returns a clear error if the heading does not exist (headings cannot be created via the scripting bridge — create them in Things first)
+- `checklist_items`: Array of checklist item titles. Created as real Things checklist items. Because Things' AppleScript bridge cannot create checklists, these to-dos are created via the Things URL scheme, which builds the to-do and its checklist atomically. The response echoes the created items.
+- `heading`: Name of a heading within the target project to place the to-do under (the project must be supplied via `list_id` or `list_title`). The to-do is created via the URL scheme; if the heading exists it lands under it, otherwise it lands at the project's top level. The Things bridge cannot read/verify headings, so the response includes a `note` flagging that placement can't be confirmed.
+
+> **Note:** Checklist items and heading placement are only possible through the Things URL scheme. Creating such a to-do briefly brings Things to the foreground. Reading checklist items back (e.g. via `get_todos`) is not supported by the Things scripting bridge, so the `checklistItems` field may be empty on reads even when items exist in the app.
 
 #### `add_project` - Create a new project  
 **Required**: `title`  
@@ -117,7 +119,7 @@ A comprehensive Claude Desktop Extension that provides seamless integration with
 **Required**: `id`  
 **Optional**: `title`, `notes`, `when`, `deadline`, `tags`, `checklist_items`, `completed`, `canceled`
 - `tags`: Array of tag names. Use `[]` to remove all tags
-- `checklist_items`: Array of checklist item titles. Replaces the to-do's checklist items; use `[]` to remove all checklist items
+- `checklist_items`: Not applied on update. Editing checklists on an existing to-do requires the Things URL `update` command, which needs an auth token (not enabled). The response includes a `note` when this is supplied. To set a checklist, create the to-do with `add_todo`.
 
 #### `update_project` - Update existing project
 **Required**: `id`  

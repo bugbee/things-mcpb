@@ -126,6 +126,11 @@ function makeByIdAccessor(collection) {
 export function createMockThings({ projects = [], areas = [], lists = [] } = {}) {
   const things = {};
 
+  // Ensure a built-in Inbox list exists (used as the default URL-scheme scope)
+  if (!lists.some((l) => l.id() === 'TMInboxListSource')) {
+    lists = [createContainer({ id: 'TMInboxListSource', name: 'Inbox', type: 'list' }), ...lists];
+  }
+
   things.ToDo = (props) => createTodo(props);
   things.ChecklistItem = (props) => createChecklistItem(props.name);
 
@@ -162,10 +167,44 @@ export function createMockThings({ projects = [], areas = [], lists = [] } = {})
   return things;
 }
 
+/**
+ * Install a mock JXA host `Application` global so url-scheme.js can run under
+ * Node. `openLocation` simulates Things processing a `things:///add` URL by
+ * invoking `onOpenLocation(url)` (which the test wires up to create a to-do in
+ * the mock), and `delay` is a no-op. Returns a teardown function and a record
+ * of the URLs that were opened.
+ */
+export function installMockApplication(onOpenLocation) {
+  const opened = [];
+  const prevApplication = globalThis.Application;
+
+  const hostApp = {
+    includeStandardAdditions: false,
+    openLocation(url) {
+      opened.push(url);
+      if (onOpenLocation) onOpenLocation(url);
+    },
+    delay() {}
+  };
+
+  const ApplicationMock = function () { return hostApp; };
+  ApplicationMock.currentApplication = () => hostApp;
+
+  globalThis.Application = ApplicationMock;
+
+  return {
+    opened,
+    restore() {
+      globalThis.Application = prevApplication;
+    }
+  };
+}
+
 export default {
   createMockThings,
   createContainer,
   createHeading,
   createTodo,
-  createChecklistItem
+  createChecklistItem,
+  installMockApplication
 };
