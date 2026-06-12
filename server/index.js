@@ -19,6 +19,7 @@ import {
 import { TOOL_DEFINITIONS } from "./tool-definitions.js";
 import { JXAExecutor } from "./jxa-executor.js";
 import { ThingsLogger, ParameterProcessor } from "./utils.js";
+import { enrichChecklists } from "./things-database.js";
 import { SERVER_CONFIG } from "./server-config.js";
 
 class ThingsServer {
@@ -54,12 +55,17 @@ class ThingsServer {
         
         // Execute via modular JXA
         const result = await this.jxaExecutor.execute(name, processedArgs);
-        
+
+        // Populate checklist items from the Things database (read path / #22).
+        // JXA cannot read checklists, so this enriches any to-dos in the result.
+        // Fail-soft: leaves checklists untouched if the database is unavailable.
+        const enriched = await enrichChecklists(result);
+
         return {
           content: [
             {
               type: "text",
-              text: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+              text: typeof enriched === 'string' ? enriched : JSON.stringify(enriched, null, 2),
             },
           ],
         };

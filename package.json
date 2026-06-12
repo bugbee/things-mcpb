@@ -1,6 +1,6 @@
 {
   "name": "things-mcpb",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "type": "module",
   "description": "Claude Desktop Extension for Things, the award-winning personal task manager",
   "main": "server/index.js",

@@ -8,14 +8,16 @@
  * cannot create checklist items), so the to-do + checklist are created
  * atomically and the response echoes the created items.
  *
- * Read path: the AppleScript bridge generally cannot read checklist items back,
- * so get_todos exposes a stable `checklistItems` field that may be empty. The
- * write response is the authoritative confirmation of what was created.
+ * Read path (#22): the AppleScript bridge cannot read checklist items, so the
+ * server enriches get_todos results from the Things SQLite database. This test
+ * applies that same `enrichChecklists` step (as the server does) and asserts the
+ * created checklist is read back.
  *
  * Requires Things 3 running; skips cleanly in CI.
  */
 
 import { TestSuite, expect, ThingsTestHelper } from '../test-utils.js';
+import { enrichChecklists } from '../../server/things-database.js';
 import { execSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import path from 'path';
@@ -66,7 +68,7 @@ suite.test('add_todo with checklist_items creates checklist items (write path)',
   createdTodoId = parsed.data.id;
 });
 
-suite.test('get_todos exposes a checklistItems field (read path, issue #22)', async () => {
+suite.test('get_todos + SQLite enrichment returns the checklist (read path, #22)', async () => {
   if (!await ThingsTestHelper.isRunning() || !createdTodoId) {
     console.log('⏭️  Skipping - Things 3 not running or setup failed');
     return;
@@ -75,15 +77,16 @@ suite.test('get_todos exposes a checklistItems field (read path, issue #22)', as
   const parsed = runScript('get_todos', { include_items: true });
   expect.toEqual(parsed.success, true);
 
+  // The JXA layer leaves checklistItems empty; the server enriches from SQLite.
+  await enrichChecklists(parsed.data);
+
   const todo = parsed.data.find(t => t.id === createdTodoId);
   expect.toBeTruthy(todo, 'created todo should be returned');
-  // The field is always present; it may be empty because the AppleScript bridge
-  // cannot read checklist items back (a Things limitation, not a bug here).
   expect.toHaveProperty(todo, 'checklistItems');
-  if (todo.checklistItems.length === 0) {
-    console.log('   ℹ️  checklistItems is empty on read - expected: the bridge ' +
-      'cannot read checklists. Confirm the items exist via the Things UI.');
-  }
+  expect.toHaveLength(todo.checklistItems, 3);
+  expect.toEqual(todo.checklistItems[0].name, 'First sub-item');
+  expect.toEqual(todo.checklistItems[1].name, 'Second sub-item');
+  expect.toEqual(todo.checklistItems[2].name, 'Third sub-item');
 });
 
 suite.test('cleanup: remove regression todo', async () => {

@@ -18,10 +18,14 @@ import path from 'path';
 const TEST_FILES = [
   // Unit tests (no Things 3 required)
   'unit/parameter-processor.test.js',
-  'unit/input-validator.test.js', 
+  'unit/input-validator.test.js',
   'unit/date-handling.test.js',
   'unit/tag-formatting.test.js',
   'unit/list-ids.test.js',
+  'unit/list-resolution.test.js',
+  'unit/add-todo.test.js',
+  'unit/url-scheme.test.js',
+  'unit/things-database.test.js',
   
   // Build system tests
   'unit/build-system.test.js',

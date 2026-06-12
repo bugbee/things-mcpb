@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.5] - 2026-06-12
+
+### Fixed
+- **`get_todos` now returns checklist items (closes #22 read path).** The Things
+  AppleScript/JXA bridge cannot read checklist items (confirmed against the
+  official Things AppleScript Guide — there is no checklist class in the
+  dictionary), so the server now reads them directly from the Things SQLite
+  database (read-only, via the macOS `sqlite3` CLI — no new dependency) and
+  enriches any to-dos in a tool response. To-dos without a checklist correctly
+  return `checklistItems: []`.
+
+### Notes
+- Checklist read-back is fail-soft: if the Things database can't be located or
+  read, `checklistItems` degrades to an empty array rather than erroring.
+- The database is opened read-only; task ids are validated before use in SQL.
+
 ## [1.5.4] - 2026-06-10
 
 ### Fixed

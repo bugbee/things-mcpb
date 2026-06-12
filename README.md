@@ -65,7 +65,7 @@ A comprehensive Claude Desktop Extension that provides seamless integration with
 - `checklist_items`: Array of checklist item titles. Created as real Things checklist items. Because Things' AppleScript bridge cannot create checklists, these to-dos are created via the Things URL scheme, which builds the to-do and its checklist atomically. The response echoes the created items.
 - `heading`: Name of a heading within the target project to place the to-do under (the project must be supplied via `list_id` or `list_title`). The to-do is created via the URL scheme; if the heading exists it lands under it, otherwise it lands at the project's top level. The Things bridge cannot read/verify headings, so the response includes a `note` flagging that placement can't be confirmed.
 
-> **Note:** Checklist items and heading placement are only possible through the Things URL scheme. Creating such a to-do briefly brings Things to the foreground. Reading checklist items back (e.g. via `get_todos`) is not supported by the Things scripting bridge, so the `checklistItems` field may be empty on reads even when items exist in the app.
+> **Note:** Checklist items and heading placement are only possible through the Things URL scheme. Creating such a to-do briefly brings Things to the foreground. Checklist items are *read back* by querying the Things database directly (the scripting bridge can't read them) — see below.
 
 #### `add_project` - Create a new project  
 **Required**: `title`  
@@ -85,6 +85,7 @@ A comprehensive Claude Desktop Extension that provides seamless integration with
 
 #### `get_todos` - Get todos with filtering
 **Optional**: `project_uuid`, `include_items`
+- When `include_items` is true, each to-do's `checklistItems` are populated by reading the Things database directly (read-only), because the Things scripting bridge cannot read checklist items. If the database can't be located (e.g. a future Things layout change), `checklistItems` degrades gracefully to an empty array rather than failing.
 
 #### `get_projects` - Get all projects
 **Optional**: `include_items`
